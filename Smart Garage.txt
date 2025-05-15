@@ -1,0 +1,84 @@
+#include <LiquidCrystal.h>
+#include <Servo.h>
+
+#define RS 6
+#define EN 12
+#define ECHO 7
+#define TRIG 8
+#define Park1 11
+#define Park2 10
+
+float duration, distance;
+
+bool revread1 = 0, revread2 = 0;  // previous state of IR sensors
+Servo door;
+LiquidCrystal screen(RS, EN, 5, 4, 3, 2);
+
+void setup()
+{  
+  pinMode(TRIG, OUTPUT);
+  pinMode(ECHO, INPUT);
+  pinMode(Park1, INPUT);
+  pinMode(Park2, INPUT);
+  door.attach(9);
+  door.write(0);
+  screen.begin(16, 2);
+  screen.print("Smart Garage");
+  delay(2000);
+  screen.clear();
+}
+
+void loop()
+{
+  // Read current state
+  bool readingPark1 = !digitalRead(Park1);
+  bool readingPark2 = !digitalRead(Park2);
+
+  bool full = readingPark1 && readingPark2;
+  bool carLeaving1 = revread1 && !readingPark1;
+  bool carLeaving2 = revread2 && !readingPark2;
+  bool carLeaving = carLeaving1 || carLeaving2;
+
+  // Display parking status
+  screen.setCursor(0, 0);
+  screen.print("P1:");
+  screen.print(readingPark1 ? "Taken " : "Free  ");
+  screen.print("P2:");
+  screen.print(readingPark2 ? "Taken" : "Free ");
+
+  // Get ultrasonic distance
+  digitalWrite(TRIG, LOW);
+  delayMicroseconds(2);
+  digitalWrite(TRIG, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(TRIG, LOW);
+  duration = pulseIn(ECHO, HIGH);
+  distance = duration * 0.0343 / 2;
+
+  // Clear second line before updating it
+  screen.setCursor(0, 1);
+  screen.print("                "); // clear line
+  screen.setCursor(0, 1);
+
+  if (distance < 5 && !full) {
+    screen.print("Car Incoming");
+    openDoor();
+  } else if (carLeaving) {
+    screen.print("Car Leaving");
+    openDoor();
+  } else {
+    door.write(0);
+  }
+
+  // Save previous readings
+  revread1 = readingPark1;
+  revread2 = readingPark2;
+
+  delay(200);  // Small delay for sensor debounce
+}
+
+void openDoor() {
+  door.write(90);
+  delay(2500);
+  door.write(0);
+}
